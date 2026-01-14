@@ -1,0 +1,42 @@
+name: CI & DevSecOps Pipeline
+
+on:
+  push:
+    branches: ["master", "main"]
+  workflow_dispatch: # Permite ejecutarlo manualmente si lo necesitas
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      # 1. Iniciar sesión en Docker Hub
+      # IMPORTANTE: Debes configurar los secretos en GitHub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 2. Construir la imagen Docker
+      # OJO AQUÍ: Agregamos './SpendSmart' al final porque tu Dockerfile está en esa carpeta
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/spendsmart:latest ./SpendSmart
+
+      # 3. Escaneo de Seguridad (DevSecOps) con Trivy
+      # Esto revisará la imagen que acabamos de crear en busca de vulnerabilidades
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ secrets.DOCKER_USERNAME }}/spendsmart:latest"
+          format: "table"
+          exit-code: "0" # No rompe el pipeline si halla errores (para que puedas ver el reporte tranquilo)
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      # 4. Subir la imagen a Docker Hub
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/spendsmart:latest
