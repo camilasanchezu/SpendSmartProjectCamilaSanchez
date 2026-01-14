@@ -1,42 +1,55 @@
-name: CI & DevSecOps Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: ["master", "main"]
-  workflow_dispatch: # Permite ejecutarlo manualmente si lo necesitas
+    branches: ["main"]
 
 jobs:
-  build-and-scan:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout del código
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      # 1. Iniciar sesión en Docker Hub
-      # IMPORTANTE: Debes configurar los secretos en GitHub
-      - name: Log in to Docker Hub
+      # --- NUEVO: ETAPA 1 - PRUEBA DE INFRAESTRUCTURA ---
+      - name: 🧪 Test Kubernetes Manifests (Dry Run)
+        run: |
+          # Esto simula aplicar los archivos para ver si tienen errores de sintaxis
+          # Es una prueba válida de "Infraestructura como Código"
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          ./kubectl apply -f k8s/ --dry-run=client --validate=true
+        continue-on-error: false
+
+      # --- NUEVO: ETAPA 2 - PRUEBA DE ESTRUCTURA DE ARCHIVOS ---
+      - name: 📂 Verify Project Structure
+        run: |
+          # Verifica que existan los archivos críticos antes de intentar nada
+          if [ -f "Dockerfile" ]; then echo "✅ Dockerfile found"; else echo "❌ Dockerfile missing" && exit 1; fi
+          if [ -d "k8s" ]; then echo "✅ Kubernetes folder found"; else echo "❌ k8s folder missing" && exit 1; fi
+
+      # --- TU ETAPA EXISTENTE (YA LA TIENES) ---
+      - name: 🛡️ Security Scan (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "table"
+          exit-code: "0" # Lo dejamos en 0 para que reporte pero no rompa si encuentra algo leve
+          ignore-unfixed: true
+          severity: "CRITICAL,HIGH"
+
+      # --- LOGIN DOCKER ---
+      - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 2. Construir la imagen Docker
-      # OJO AQUÍ: Agregamos './SpendSmart' al final porque tu Dockerfile está en esa carpeta
-      - name: Build Docker image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/spendsmart:latest ./SpendSmart
-
-      # 3. Escaneo de Seguridad (DevSecOps) con Trivy
-      # Esto revisará la imagen que acabamos de crear en busca de vulnerabilidades
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      # --- BUILD & PUSH ---
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
         with:
-          image-ref: "${{ secrets.DOCKER_USERNAME }}/spendsmart:latest"
-          format: "table"
-          exit-code: "0" # No rompe el pipeline si halla errores (para que puedas ver el reporte tranquilo)
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
-
-      # 4. Subir la imagen a Docker Hub
-      - name: Push Docker image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/spendsmart:latest
+          context: .
+          push: true
+          tags: camilasanchezu/spendsmart-k8s:latest
