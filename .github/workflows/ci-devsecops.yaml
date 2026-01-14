@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v3
 
       # --- NUEVO: ETAPA 1 - PRUEBA DE INFRAESTRUCTURA ---
-      - name: 🧪 Test Kubernetes Manifests (Dry Run)
+      - name: Test Kubernetes Manifests (Dry Run)
         run: |
           # Esto simula aplicar los archivos para ver si tienen errores de sintaxis
           # Es una prueba válida de "Infraestructura como Código"
@@ -22,11 +22,11 @@ jobs:
         continue-on-error: false
 
       # --- NUEVO: ETAPA 2 - PRUEBA DE ESTRUCTURA DE ARCHIVOS ---
-      - name: 📂 Verify Project Structure
+      - name: Verify Project Structure
         run: |
           # Verifica que existan los archivos críticos antes de intentar nada
-          if [ -f "Dockerfile" ]; then echo "✅ Dockerfile found"; else echo "❌ Dockerfile missing" && exit 1; fi
-          if [ -d "k8s" ]; then echo "✅ Kubernetes folder found"; else echo "❌ k8s folder missing" && exit 1; fi
+          if [ -f "Dockerfile" ]; then echo "Dockerfile found"; else echo "Dockerfile missing" && exit 1; fi
+          if [ -d "k8s" ]; then echo "Kubernetes folder found"; else echo "k8s folder missing" && exit 1; fi
 
       # --- TU ETAPA EXISTENTE (YA LA TIENES) ---
       - name: 🛡️ Security Scan (Trivy)
